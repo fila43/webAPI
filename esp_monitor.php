@@ -1,8 +1,49 @@
 <?php
+/**
+ * ESP8266 Temperature Monitor s přihlašováním
+ * 
+ * KONFIGURACE PŘIHLAŠOVÁNÍ:
+ * - Pro změnu přihlašovacích údajů upravte konstanty níže
+ * - LOGIN_USERNAME: uživatelské jméno (výchozí: admin)
+ * - LOGIN_PASSWORD: heslo (výchozí: esp2024)
+ * - Session zůstává aktivní dokud se uživatel neodhlásí
+ */
+
+session_start();
+
 // Konfigurace
 define('ESP_API_KEY', 'esp_secret_key_2024');
+define('LOGIN_USERNAME', 'admin');          // <- ZMĚŇTE uživatelské jméno zde
+define('LOGIN_PASSWORD', 'esp2023');        // <- ZMĚŇTE heslo zde
 $esp_dir = 'esp_data';
 $commands_dir = 'esp_commands';
+
+// Zpracování přihlášení a odhlášení
+if (isset($_POST['login_action'])) {
+    if ($_POST['login_action'] === 'login') {
+        $username = $_POST['username'] ?? '';
+        $password = $_POST['password'] ?? '';
+        
+        if ($username === LOGIN_USERNAME && $password === LOGIN_PASSWORD) {
+            $_SESSION['logged_in'] = true;
+            $_SESSION['login_time'] = time();
+            header('Location: ' . $_SERVER['PHP_SELF']);
+            exit;
+        } else {
+            $login_error = 'Nesprávné uživatelské jméno nebo heslo';
+        }
+    } elseif ($_POST['login_action'] === 'logout') {
+        session_destroy();
+        header('Location: ' . $_SERVER['PHP_SELF']);
+        exit;
+    }
+}
+
+// Kontrola přihlášení
+if (!isset($_SESSION['logged_in']) || $_SESSION['logged_in'] !== true) {
+    showLoginForm($login_error ?? null);
+    exit;
+}
 
 // Zpracování příkazů z formuláře
 if ($_POST && isset($_POST['action'])) {
@@ -130,6 +171,142 @@ function getStatusColor($is_online) {
 
 function getStatusText($is_online) {
     return $is_online ? 'ONLINE' : 'OFFLINE';
+}
+
+function showLoginForm($error = null) {
+    ?>
+    <!DOCTYPE html>
+    <html lang="cs">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>ESP8266 Monitor - Přihlášení</title>
+        <style>
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+            body {
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
+                height: 100vh;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+            }
+            .login-container {
+                background: white;
+                padding: 40px;
+                border-radius: 12px;
+                box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+                max-width: 400px;
+                width: 90%;
+            }
+            .login-header {
+                text-align: center;
+                margin-bottom: 30px;
+            }
+            .login-header h1 {
+                color: #333;
+                font-size: 24px;
+                margin-bottom: 10px;
+            }
+            .login-header p {
+                color: #666;
+                font-size: 14px;
+            }
+            .form-group {
+                margin-bottom: 20px;
+            }
+            .form-group label {
+                display: block;
+                margin-bottom: 8px;
+                font-weight: bold;
+                color: #333;
+            }
+            .form-group input {
+                width: 100%;
+                padding: 12px;
+                border: 1px solid #ddd;
+                border-radius: 6px;
+                font-size: 16px;
+                transition: border-color 0.3s;
+            }
+            .form-group input:focus {
+                outline: none;
+                border-color: #74b9ff;
+                box-shadow: 0 0 0 2px rgba(116, 185, 255, 0.2);
+            }
+            .login-btn {
+                width: 100%;
+                padding: 12px;
+                background: linear-gradient(45deg, #74b9ff, #0984e3);
+                color: white;
+                border: none;
+                border-radius: 6px;
+                font-size: 16px;
+                font-weight: bold;
+                cursor: pointer;
+                transition: transform 0.2s;
+            }
+            .login-btn:hover {
+                transform: translateY(-2px);
+            }
+            .error-message {
+                background: #f8d7da;
+                color: #721c24;
+                padding: 10px;
+                border-radius: 4px;
+                margin-bottom: 20px;
+                text-align: center;
+            }
+            .login-info {
+                margin-top: 20px;
+                padding: 15px;
+                background: #e3f2fd;
+                border-radius: 6px;
+                font-size: 12px;
+                color: #1565c0;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="login-container">
+            <div class="login-header">
+                <h1>🌡️ ESP8266 Monitor</h1>
+                <p>Přihlášení do administrace</p>
+            </div>
+            
+            <?php if ($error): ?>
+                <div class="error-message"><?= htmlspecialchars($error) ?></div>
+            <?php endif; ?>
+            
+            <form method="post">
+                <div class="form-group">
+                    <label for="username">Uživatelské jméno:</label>
+                    <input type="text" id="username" name="username" required autocomplete="username">
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Heslo:</label>
+                    <input type="password" id="password" name="password" required autocomplete="current-password">
+                </div>
+                
+                <input type="hidden" name="login_action" value="login">
+                <button type="submit" class="login-btn">Přihlásit se</button>
+            </form>
+            
+            <div class="login-info">
+                <strong>Přihlašovací údaje:</strong><br>
+                Uživatel: xy <br>
+                Heslo: xy <br>
+                <small>Pro změnu upravte konstanty v PHP souboru</small>
+            </div>
+        </div>
+    </body>
+    </html>
+    <?php
 }
 ?>
 <!DOCTYPE html>
@@ -384,9 +561,28 @@ function getStatusText($is_online) {
         </div>
 
         <div class="refresh-info">
-            ⏱️ Stránka se automaticky obnovuje každých 10 sekund | 
-            Posledni aktualizace: <?= date('H:i:s') ?> |
-            Zařízení celkem: <?= count($devices) ?>
+            <div style="float: left;">
+                ⏱️ Stránka se automaticky obnovuje každých 10 sekund | 
+                Posledni aktualizace: <?= date('H:i:s') ?> |
+                Zařízení celkem: <?= count($devices) ?>
+            </div>
+            <div style="float: right;">
+                👤 Přihlášen jako: <strong><?= LOGIN_USERNAME ?></strong> | 
+                Přihlášen od: <?= date('H:i:s', $_SESSION['login_time']) ?> |
+                <form method="post" style="display: inline; margin-left: 10px;">
+                    <input type="hidden" name="login_action" value="logout">
+                    <button type="submit" style="
+                        background: #dc3545; 
+                        color: white; 
+                        border: none; 
+                        padding: 5px 10px; 
+                        border-radius: 4px; 
+                        cursor: pointer;
+                        font-size: 12px;
+                    ">🚪 Odhlásit se</button>
+                </form>
+            </div>
+            <div style="clear: both;"></div>
         </div>
 
         <?php if (empty($devices)): ?>
