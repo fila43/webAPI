@@ -7,14 +7,21 @@ $commands_dir = 'esp_commands';
 // Zpracování příkazů z formuláře
 if ($_POST && isset($_POST['action'])) {
     $device_id = $_POST['device_id'] ?? '';
-    $command = $_POST['command'] ?? '';
-    $value = $_POST['value'] ?? null;
+    $action = $_POST['action'];
     
-    if ($device_id && $command) {
-        sendCommand($device_id, $command, $value);
-        // Přesměruj zpět aby se zabránilo opakovanému odeslání
+    if ($action === 'delete_device' && $device_id) {
+        deleteDevice($device_id);
         header('Location: ' . $_SERVER['PHP_SELF']);
         exit;
+    } elseif ($action === 'send_command') {
+        $command = $_POST['command'] ?? '';
+        $value = $_POST['value'] ?? null;
+        
+        if ($device_id && $command) {
+            sendCommand($device_id, $command, $value);
+            header('Location: ' . $_SERVER['PHP_SELF']);
+            exit;
+        }
     }
 }
 
@@ -82,6 +89,30 @@ function sendCommand($device_id, $command, $value = null) {
     // Ulož příkaz
     $command_file = $commands_dir . '/device_' . $device_id . '_command.json';
     file_put_contents($command_file, json_encode($command_data, JSON_PRETTY_PRINT));
+    
+    return true;
+}
+
+function deleteDevice($device_id) {
+    global $esp_dir, $commands_dir;
+    
+    // Smaž hlavní soubor zařízení
+    $device_file = $esp_dir . '/device_' . $device_id . '.json';
+    if (file_exists($device_file)) {
+        unlink($device_file);
+    }
+    
+    // Smaž historii
+    $history_file = $esp_dir . '/device_' . $device_id . '_history.json';
+    if (file_exists($history_file)) {
+        unlink($history_file);
+    }
+    
+    // Smaž čekající příkazy
+    $command_file = $commands_dir . '/device_' . $device_id . '_command.json';
+    if (file_exists($command_file)) {
+        unlink($command_file);
+    }
     
     return true;
 }
@@ -301,6 +332,18 @@ function getStatusText($is_online) {
             color: white;
         }
 
+        .btn-delete {
+            background: #dc3545;
+            color: white;
+            border: 2px solid #c82333;
+        }
+
+        .btn-delete:hover {
+            background: #c82333;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(220, 53, 69, 0.3);
+        }
+
         .temp-controls {
             display: flex;
             gap: 5px;
@@ -452,6 +495,14 @@ function getStatusText($is_online) {
                                     <input type="number" name="value" class="temp-input" step="0.5" min="5" max="35" 
                                            value="<?= $device['desired_temp'] ?>">
                                     <button type="submit" class="btn btn-info">Nastavit</button>
+                                </form>
+                            </div>
+
+                            <div class="control-group" style="margin-top: 15px; border-top: 1px solid #ddd; padding-top: 10px;">
+                                <form method="post" onsubmit="return confirm('Opravdu chcete smazat zařízení <?= htmlspecialchars($device['device_name']) ?>? Tato akce je nevratná!')">
+                                    <input type="hidden" name="device_id" value="<?= $device['device_id'] ?>">
+                                    <input type="hidden" name="action" value="delete_device">
+                                    <button type="submit" class="btn btn-delete" style="width: 100%;">🗑️ Odstranit zařízení</button>
                                 </form>
                             </div>
                         </div>
